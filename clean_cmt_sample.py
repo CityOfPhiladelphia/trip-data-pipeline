@@ -1,4 +1,5 @@
 from collections import defaultdict
+from itertools import cycle
 from string import digits
 from random import choice
 
@@ -18,6 +19,12 @@ outfilenames = [
 def digitstr(n):
     """Return a random string of n digits"""
     return ''.join(choice(digits) for _ in range(n))
+
+def address_source():
+    with open('addresses.txt') as infile:
+        yield from (line.strip() for line in cycle(infile))
+
+addresses = address_source()
 
 shifts = defaultdict(lambda: digitstr(8))
 trips = defaultdict(lambda: digitstr(5))
@@ -74,7 +81,9 @@ for infn, outfn in zip(infilenames, outfilenames):
             # lat/lngs
             cols[9] = cols[9][:4] + digitstr(6) + '"'
             cols[10] = cols[10][:5] + digitstr(6) + '"'
+            cols[11] = '"' + next(addresses) + '"'
             cols[12] = cols[12][:4] + digitstr(6) + '"'
             cols[13] = cols[13][:5] + digitstr(6) + '"'
+            cols[14] = '"' + next(addresses) + '"'
 
             outfile.write(prefix + ','.join(cols))
