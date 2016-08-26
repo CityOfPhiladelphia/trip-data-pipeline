@@ -17,12 +17,15 @@ pip install -e .
 
 ```bash
 taxitrips.py --help
-# Usage: taxitrips.py [OPTIONS]
+# Usage: taxitrips.py [OPTIONS] COMMAND [ARGS]...
 #
 # Options:
-#   -v, --verifone PATH  Verifone data files
-#   -c, --cmt PATH       CMT data files
-#   --help               Show this message and exit.
+#   --help  Show this message and exit.
+#
+# Commands:
+#   anonymize
+#   transform
+#   upload
 
 # EXAMPLES:
 
