@@ -32,13 +32,11 @@ For Oracle pre-12c, use the following:
     CREATE TABLE chauffeur_no_ids (
       ID            NUMBER         NOT NULL,
       Chauffeur_No  VARCHAR2(4000) NOT NULL);
-
+    CREATE INDEX chauffeur_no_idx ON chauffeur_no_ids (Chauffeur_No)
     CREATE SEQUENCE chauffeur_no_seq;
-
     CREATE OR REPLACE TRIGGER chauffeur_no_trig
     BEFORE INSERT ON chauffeur_no_ids
     FOR EACH ROW
-
     BEGIN
       SELECT chauffeur_no_seq.NEXTVAL
       INTO   :new.ID
@@ -48,9 +46,8 @@ For Oracle pre-12c, use the following:
     CREATE TABLE medallion_ids (
       ID         NUMBER         NOT NULL,
       Medallion  VARCHAR2(4000) NOT NULL);
-
+    CREATE INDEX medallion_idx ON medallion_ids (Medallion)
     CREATE SEQUENCE medallion_seq;
-
     CREATE OR REPLACE TRIGGER medallion_trig
     BEFORE INSERT ON medallion_ids
     FOR EACH ROW
@@ -64,8 +61,8 @@ Finally, for the public, create the following view:
 
     CREATE VIEW anonymized_taxi_trips AS
         SELECT Trip_No, Operator_Name,
-            medallion_ids.ID AS Medallion_ID,
-            chauffeur_no_ids.ID AS Chauffeur_ID,
+            mids.ID AS Medallion_ID,
+            cnids.ID AS Chauffeur_ID,
             Meter_On_Datetime, Meter_Off_Datetime,
             Trip_Length,
             Pickup_Latitude, Pickup_Longitude, Pickup_Location,
@@ -73,10 +70,7 @@ Finally, for the public, create the following view:
             Fare, Tax, Tips, Tolls, Surcharge, Trip_Total,
             Payment_Type,
             Street_or_Dispatch,
-            Data_Source,
-            ST_GeomFromText('MULTIPOINT(' || Pickup_Longitude || ' ' || Pickup_Latitude || ', '
-                                          || Dropoff_Longitude || ' ' || Dropoff_Latitude || ')',
-                            4326) AS geom
+            Data_Source
         FROM taxi_trips ts
         LEFT JOIN medallion_ids mids ON ts.Medallion = mids.Medallion
         LEFT JOIN chauffeur_no_ids cnids ON ts.Chauffeur_No = cnids.Chauffeur_No;

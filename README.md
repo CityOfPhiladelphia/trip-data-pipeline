@@ -34,4 +34,10 @@ taxitrips.py transform -v "testdata/verifone*" -c "testdata/cmt*" > testdata/mer
 
 # Send result to standard output:
 taxitrips.py transform -v "testdata/verifone*" -c "testdata/cmt*" 2> /dev/null
+
+# Upsert the generated data into an Oracle database
+taxitrips.py upload testdata/merged.scv -u <username> -p <password> -d <dsn>
+
+# Update the anonymization tables
+taxitrips.py anonymize -u <username> -p <password> -d <dsn>
 ```
