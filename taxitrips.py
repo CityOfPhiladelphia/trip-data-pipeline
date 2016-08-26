@@ -228,13 +228,19 @@ def anonymize(username, password, dsn, table_name, column_table_pairs):
     the id lookup table should be created.
     """
     make_sql = lambda column_name, ids_table_name: '''
-        INSERT INTO {ids_table_name} ({column_name})
-            SELECT ts.{column_name}
-                FROM {table_name} ts
-                LEFT JOIN {ids_table_name} ids
-                ON ts.{column_name} = ids.{column_name}
-                WHERE ids.id IS NULL
-                AND ts.{column_name} IS NOT NULL
+        MERGE INTO {ids_table_name} orig
+            USING (
+                SELECT ts.{column_name}
+                    FROM {table_name} ts
+                    LEFT JOIN {ids_table_name} ids
+                    ON ts.{column_name} = ids.{column_name}
+                    WHERE ids.id IS NULL
+                    AND ts.{column_name} IS NOT NULL
+                    GROUP BY ts.{column_name}
+                ) new
+            ON (orig.{column_name} = new.{column_name})
+            WHEN NOT MATCHED THEN
+                INSERT (orig.{column_name}) VALUES (new.{column_name})
         '''.format(table_name=table_name,
                    column_name=column_name,
                    ids_table_name=ids_table_name)
