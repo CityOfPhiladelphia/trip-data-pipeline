@@ -29,36 +29,24 @@ For anonymizing chauffeur medallion numbers, create the following tables:
 
 Finally, for the public, create the following view:
 
-    CREATE VIEW anonymized_taxi_trips (
-        Trip_No,
-        Operator_Name,
-        medallion_ids.ID AS Medallion_ID,
-        chauffeur_no_ids.ID AS Chauffeur_ID,
-        Meter_On_Datetime,
-        Meter_Off_Datetime,
-        Trip_Length,
-        Pickup_Latitude,
-        Pickup_Longitude,
-        Pickup_Location,
-        Dropoff_Latitude,
-        Dropoff_Longitude,
-        Dropoff_Location,
-        Fare,
-        Tax,
-        Tips,
-        Tolls,
-        Surcharge,
-        Trip_Total,
-        Payment_Type,
-        Street_or_Dispatch,
-        Data_Source,
-        ST_GeomFromText('MULTIPOINT(' || Pickup_Longitude || ' ' || Pickup_Latitude || ', '
-                                      || Dropoff_Longitude || ' ' || Dropoff_Latitude || ')',
-                        4326) AS geom
-    ) AS
-        SELECT * FROM taxi_trips ts
-            LEFT JOIN medallion_ids mids ON ts.Medallion = mids.Medallion
-            LEFT JOIN chauffeur_no_ids cnids ON ts.Chauffeur_No = cnids.Chauffeur_No;
+    CREATE VIEW anonymized_taxi_trips AS
+        SELECT Trip_No, Operator_Name,
+            medallion_ids.ID AS Medallion_ID,
+            chauffeur_no_ids.ID AS Chauffeur_ID,
+            Meter_On_Datetime, Meter_Off_Datetime,
+            Trip_Length,
+            Pickup_Latitude, Pickup_Longitude, Pickup_Location,
+            Dropoff_Latitude, Dropoff_Longitude, Dropoff_Location,
+            Fare, Tax, Tips, Tolls, Surcharge, Trip_Total,
+            Payment_Type,
+            Street_or_Dispatch,
+            Data_Source,
+            ST_GeomFromText('MULTIPOINT(' || Pickup_Longitude || ' ' || Pickup_Latitude || ', '
+                                          || Dropoff_Longitude || ' ' || Dropoff_Latitude || ')',
+                            4326) AS geom
+        FROM taxi_trips ts
+        LEFT JOIN medallion_ids mids ON ts.Medallion = mids.Medallion
+        LEFT JOIN chauffeur_no_ids cnids ON ts.Chauffeur_No = cnids.Chauffeur_No;
 
 Updates weekly.
 """
