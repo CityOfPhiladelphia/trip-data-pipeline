@@ -1,5 +1,21 @@
 #!/usr/bin/env python
 
+"""
+Script to perform the following steps for taxi trip data:
+
+1. Combine CMT/Verifone data
+2. Add a new column that specifies whether each trip came from CMT or
+   Verifone
+3. Remove Shift # column.
+4. Remove Device Type column.
+5. Format Columns R, S, T, U, V, and W to be 2 decimal points and currency.
+6. Anonymize the 'Medallion #' fields or remove that column entirely and
+   instead create a column with a unique ID to represent each driver,
+   based on the 'Chauffeur #' field in the CMT and Verifone files.
+
+Updates weekly.
+"""
+
 import click
 from glob import iglob
 from itertools import chain
@@ -33,11 +49,6 @@ def transform(verifone_filenames, cmt_filenames):
     3. Remove Shift # column.
     4. Remove Device Type column.
     5. Format Columns R, S, T, U, V, and W to be 2 decimal points and currency.
-    6. Anonymize the 'Medallion #' fields or remove that column entirely and
-       instead create a column with a unique ID to represent each driver,
-       based on the 'Chauffeur #' field in the CMT and Verifone files.
-
-    Updates weekly.
     """
     t_ver = fromcsvs(verifone_filenames, fieldnames=['Shift #', 'Trip #', 'Operator Name', 'Medallion', 'Device Type', 'Chauffeur #', 'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch'])\
         .addfield('Data Source', 'verifone')
@@ -59,7 +70,8 @@ def transform(verifone_filenames, cmt_filenames):
 
 def upload(table_filename, username, password, db_conn_string, t_func=lambda t: t):
     """
-    Load a merged taxi trips table from a CSV file into the database.
+    Load a merged taxi trips table from a CSV file into the database (first step
+    in anonymization process). Only insert new data.
     """
     import cx_Oracle
     conn = cx_Oracle.connect(username, password, db_conn_string)
@@ -75,7 +87,11 @@ def upload(table_filename, username, password, db_conn_string, t_func=lambda t: 
 
 
 def grouper(n, iterable, fillvalue=None):
-    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    """
+    Yield groups of size n from the iterable (e.g.,
+    grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx").
+    Pulled from itertools recipes.
+    """
     from itertools import zip_longest
     args = [iter(iterable)] * n
     return zip_longest(fillvalue=fillvalue, *args)
@@ -84,12 +100,15 @@ def grouper(n, iterable, fillvalue=None):
 def todb_upsert(table, cursor):
     # Create a list of the column names
     columns = table.fieldnames()
+    id_columns = {'Trip_No', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime'}
+    non_id_columns = set(columns) - id_columns
 
     # Build the clauses for the SQL statement
     select_clause = 'SELECT {} FROM DUAL'.format(
         ', '.join(':{0} AS {0}'.format(c) for c in columns))
+    on_clause = ', '.join('orig.{0} = new.{0}'.format(c) for c in id_columns)
     update_clause = 'UPDATE SET {}'.format(
-        ', '.join('orig.{0} = new.{0}'.format(c) for c in columns if c != 'Trip_No'))
+        ', '.join('orig.{0} = new.{0}'.format(c) for c in non_id_columns))
     insert_clause = 'INSERT ({}) VALUES ({})'.format(
         ', '.join('orig.{}'.format(c) for c in columns),
         ', '.join('new.{}'.format(c) for c in columns))
@@ -97,10 +116,10 @@ def todb_upsert(table, cursor):
     sql = '''
     MERGE INTO taxi_trips orig
         USING ({}) new
-        ON (orig.Trip_No = new.Trip_No)
+        ON ({})
         WHEN MATCHED THEN {}
         WHEN NOT MATCHED THEN {}
-    '''.format(select_clause, update_clause, insert_clause)
+    '''.format(select_clause, on_clause, update_clause, insert_clause)
 
     for row_group in grouper(100, table.values(columns)):
         row_group = filter(None, row_group)
