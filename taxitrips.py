@@ -13,10 +13,58 @@ Script to perform the following steps for taxi trip data:
    instead create a column with a unique ID to represent each driver,
    based on the 'Chauffeur #' field in the CMT and Verifone files.
 
+For anonymizing chauffeur medallion numbers, create the following tables:
+
+    CREATE SEQUENCE chauffeur_no_seq;
+    CREATE TABLE chauffeur_no_ids (
+      ID           NUMBER DEFAULT chauffeur_no_seq.NEXTVAL,
+      Chauffeur_No VARCHAR2(4000)
+    );
+
+    CREATE SEQUENCE medallion_seq;
+    CREATE TABLE medallion_ids (
+      ID        NUMBER DEFAULT medallion_seq.NEXTVAL,
+      Medallion VARCHAR2(4000)
+    );
+
+Finally, for the public, create the following view:
+
+    CREATE VIEW anonymized_taxi_trips (
+        Trip_No,
+        Operator_Name,
+        medallion_ids.ID AS Medallion_ID,
+        chauffeur_no_ids.ID AS Chauffeur_ID,
+        Meter_On_Datetime,
+        Meter_Off_Datetime,
+        Trip_Length,
+        Pickup_Latitude,
+        Pickup_Longitude,
+        Pickup_Location,
+        Dropoff_Latitude,
+        Dropoff_Longitude,
+        Dropoff_Location,
+        Fare,
+        Tax,
+        Tips,
+        Tolls,
+        Surcharge,
+        Trip_Total,
+        Payment_Type,
+        Street_or_Dispatch,
+        Data_Source,
+        ST_GeomFromText('MULTIPOINT(' || Pickup_Longitude || ' ' || Pickup_Latitude || ', '
+                                      || Dropoff_Longitude || ' ' || Dropoff_Latitude || ')',
+                        4326) AS geom
+    ) AS
+        SELECT * FROM taxi_trips ts
+            LEFT JOIN medallion_ids mids ON ts.Medallion = mids.Medallion
+            LEFT JOIN chauffeur_no_ids cnids ON ts.Chauffeur_No = cnids.Chauffeur_No;
+
 Updates weekly.
 """
 
 import click
+from contextlib import contextmanager
 from glob import iglob
 from itertools import chain
 import petl
@@ -82,17 +130,24 @@ def upload(table_filename, username, password, db_conn_string,
     You can specify how many upsert statements are sent to the server at a time
     with the group_size keyword.
     """
+    with transaction(username, password, db_conn_string) as cursor:
+        t = petl.fromcsv(table_filename)\
+            .setheader(['Trip_No', 'Operator_Name', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime', 'Trip_Length', 'Pickup_Latitude', 'Pickup_Longitude', 'Pickup_Location', 'Dropoff_Latitude', 'Dropoff_Longitude', 'Dropoff_Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip_Total', 'Payment_Type', 'Street_or_Dispatch', 'Data_Source'])
+        todb_upsert(wrap_table(t), 'taxi_trips', cursor, group_size=group_size)
+
+    return t
+
+
+@contextmanager
+def transaction(username, password, db_conn_string):
     import cx_Oracle
     conn = cx_Oracle.connect(username, password, db_conn_string)
     cursor = conn.cursor()
 
-    t = petl.fromcsv(table_filename)\
-        .setheader(['Trip_No', 'Operator_Name', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime', 'Trip_Length', 'Pickup_Latitude', 'Pickup_Longitude', 'Pickup_Location', 'Dropoff_Latitude', 'Dropoff_Longitude', 'Dropoff_Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip_Total', 'Payment_Type', 'Street_or_Dispatch', 'Data_Source'])
-    todb_upsert(wrap_table(t), 'taxi_trips', cursor, group_size=group_size)
+    yield cursor
+
     conn.commit()
     conn.close()
-
-    return t
 
 
 def grouper(n, iterable, fillvalue=None):
@@ -135,6 +190,39 @@ def todb_upsert(table, tablename, cursor, group_size=1000):
         cursor.executemany(sql, list(row_group))
 
 
+def anonymize(username, password, dsn, table_name, column_table_pairs):
+    """
+    Create unique identifiers for chauffeurs and medallions in the taxi_trips
+    table.
+
+    The anonymization tables are listed, one for each column to be anonymized,
+    in column_table_pairs, which is a set of 2-tuples of the form:
+
+        [(column_name_1, ids_table_name_1),
+         (column_name_2, ids_table_name_2),
+         ...]
+
+    The ID tables should be created with a column matching the column name from
+    the original table, and an auto-incrementing ID column. See above for how
+    the id lookup table should be created.
+    """
+    make_sql = lambda column_name, ids_table_name: '''
+        INSERT INTO {ids_table_name} ({column_name})
+            SELECT {column_name}
+                FROM {table_name} ts
+                LEFT JOIN {ids_table_name} ids
+                ON ts.{column_name} = ids.{column_name}
+                WHERE ids.id IS NULL
+        '''.format(table_name=table_name,
+                   column_name=column_name,
+                   ids_table_name=ids_table_name)
+
+    with transaction(username, password, dsn) as cursor:
+        for col, ids in column_table_pairs:
+            sql = make_sql(col, ids)
+            cursor.execute(sql)
+
+
 
 # ============================================================
 
@@ -160,6 +248,17 @@ def transform_cmd(verifone, cmt):
 @click.argument('csv_filename')
 def upload_cmd(csv_filename, username, password, dsn):
     upload(csv_filename, username, password, dsn, wrap_table=lambda t: t.progress())
+
+
+@cli.command(name='anonymize')
+@click.option('--username', '-u', help='The database username')
+@click.option('--password', '-p', help='The database user password')
+@click.option('--dsn', '-d', help='The database DSN connection script')
+def anonymize_cmd(username, password, dsn):
+    anonymize(username, password, dsn, 'taxi_trips', [
+        ('Chauffeur_No', 'taxi_chauffeur_ids'),
+        ('Medallion_No', 'taxi_medallion_ids'),
+    ])
 
 
 if __name__ == '__main__':
