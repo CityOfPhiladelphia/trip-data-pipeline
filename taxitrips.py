@@ -27,6 +27,39 @@ For anonymizing chauffeur medallion numbers, create the following tables:
       Medallion VARCHAR2(4000)
     );
 
+For Oracle pre-12c, use the following:
+
+    CREATE TABLE chauffeur_no_ids (
+      ID            NUMBER         NOT NULL,
+      Chauffeur_No  VARCHAR2(4000) NOT NULL);
+
+    CREATE SEQUENCE chauffeur_no_seq;
+
+    CREATE OR REPLACE TRIGGER chauffeur_no_trig
+    BEFORE INSERT ON chauffeur_no_ids
+    FOR EACH ROW
+
+    BEGIN
+      SELECT chauffeur_no_seq.NEXTVAL
+      INTO   :new.ID
+      FROM   dual;
+    END;
+
+    CREATE TABLE medallion_ids (
+      ID         NUMBER         NOT NULL,
+      Medallion  VARCHAR2(4000) NOT NULL);
+
+    CREATE SEQUENCE medallion_seq;
+
+    CREATE OR REPLACE TRIGGER medallion_trig
+    BEFORE INSERT ON medallion_ids
+    FOR EACH ROW
+    BEGIN
+      SELECT medallion_seq.NEXTVAL
+      INTO   :new.ID
+      FROM   dual;
+    END;
+
 Finally, for the public, create the following view:
 
     CREATE VIEW anonymized_taxi_trips AS
@@ -149,7 +182,7 @@ def grouper(n, iterable, fillvalue=None):
     return zip_longest(fillvalue=fillvalue, *args)
 
 
-def todb_upsert(table, tablename, cursor, group_size=1000):
+def todb_upsert(table, table_name, cursor, group_size=1000):
     # Create a list of the column names
     columns = table.fieldnames()
     id_columns = {'Trip_No', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime'}
@@ -158,7 +191,7 @@ def todb_upsert(table, tablename, cursor, group_size=1000):
     # Build the clauses for the SQL statement
     select_clause = 'SELECT {} FROM DUAL'.format(
         ', '.join(':{0} AS {0}'.format(c) for c in columns))
-    on_clause = ', '.join('orig.{0} = new.{0}'.format(c) for c in id_columns)
+    on_clause = ' AND '.join('orig.{0} = new.{0}'.format(c) for c in id_columns)
     update_clause = 'UPDATE SET {}'.format(
         ', '.join('orig.{0} = new.{0}'.format(c) for c in non_id_columns))
     insert_clause = 'INSERT ({}) VALUES ({})'.format(
@@ -196,11 +229,12 @@ def anonymize(username, password, dsn, table_name, column_table_pairs):
     """
     make_sql = lambda column_name, ids_table_name: '''
         INSERT INTO {ids_table_name} ({column_name})
-            SELECT {column_name}
+            SELECT ts.{column_name}
                 FROM {table_name} ts
                 LEFT JOIN {ids_table_name} ids
                 ON ts.{column_name} = ids.{column_name}
                 WHERE ids.id IS NULL
+                AND ts.{column_name} IS NOT NULL
         '''.format(table_name=table_name,
                    column_name=column_name,
                    ids_table_name=ids_table_name)
@@ -244,8 +278,8 @@ def upload_cmd(csv_filename, username, password, dsn):
 @click.option('--dsn', '-d', help='The database DSN connection script')
 def anonymize_cmd(username, password, dsn):
     anonymize(username, password, dsn, 'taxi_trips', [
-        ('Chauffeur_No', 'taxi_chauffeur_ids'),
-        ('Medallion_No', 'taxi_medallion_ids'),
+        ('Chauffeur_No', 'chauffeur_no_ids'),
+        ('Medallion', 'medallion_ids'),
     ])
 
 
