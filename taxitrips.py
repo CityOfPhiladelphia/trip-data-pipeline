@@ -68,10 +68,19 @@ def transform(verifone_filenames, cmt_filenames):
     return t
 
 
-def upload(table_filename, username, password, db_conn_string, t_func=lambda t: t):
+def upload(table_filename, username, password, db_conn_string,
+           wrap_table=lambda t: t, group_size=1000):
     """
     Load a merged taxi trips table from a CSV file into the database (first step
     in anonymization process). Only insert new data.
+
+    The wrap_table function can be used to modify the table before passing it
+    along to the upsert function. For example:
+
+        upload(..., wrap_table=lambda t: t.progress())
+
+    You can specify how many upsert statements are sent to the server at a time
+    with the group_size keyword.
     """
     import cx_Oracle
     conn = cx_Oracle.connect(username, password, db_conn_string)
@@ -79,7 +88,7 @@ def upload(table_filename, username, password, db_conn_string, t_func=lambda t: 
 
     t = petl.fromcsv(table_filename)\
         .setheader(['Trip_No', 'Operator_Name', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime', 'Trip_Length', 'Pickup_Latitude', 'Pickup_Longitude', 'Pickup_Location', 'Dropoff_Latitude', 'Dropoff_Longitude', 'Dropoff_Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip_Total', 'Payment_Type', 'Street_or_Dispatch', 'Data_Source'])
-    todb_upsert(t_func(t), cursor)
+    todb_upsert(wrap_table(t), 'taxi_trips', cursor, group_size=group_size)
     conn.commit()
     conn.close()
 
@@ -97,7 +106,7 @@ def grouper(n, iterable, fillvalue=None):
     return zip_longest(fillvalue=fillvalue, *args)
 
 
-def todb_upsert(table, cursor):
+def todb_upsert(table, tablename, cursor, group_size=1000):
     # Create a list of the column names
     columns = table.fieldnames()
     id_columns = {'Trip_No', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime'}
@@ -114,14 +123,14 @@ def todb_upsert(table, cursor):
         ', '.join('new.{}'.format(c) for c in columns))
 
     sql = '''
-    MERGE INTO taxi_trips orig
+    MERGE INTO {} orig
         USING ({}) new
         ON ({})
         WHEN MATCHED THEN {}
         WHEN NOT MATCHED THEN {}
-    '''.format(select_clause, on_clause, update_clause, insert_clause)
+    '''.format(table_name, select_clause, on_clause, update_clause, insert_clause)
 
-    for row_group in grouper(100, table.values(columns)):
+    for row_group in grouper(group_size, table.values(columns)):
         row_group = filter(None, row_group)
         cursor.executemany(sql, list(row_group))
 
@@ -150,7 +159,7 @@ def transform_cmd(verifone, cmt):
 @click.option('--dsn', '-d', help='The database DSN connection script')
 @click.argument('csv_filename')
 def upload_cmd(csv_filename, username, password, dsn):
-    upload(csv_filename, username, password, dsn, t_func=lambda t: t.progress())
+    upload(csv_filename, username, password, dsn, wrap_table=lambda t: t.progress())
 
 
 if __name__ == '__main__':
