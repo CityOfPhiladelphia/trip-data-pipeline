@@ -116,9 +116,13 @@ Updates weekly.
 
 import click
 from contextlib import contextmanager
+from datetime import datetime
 from glob import iglob
 from itertools import chain
 import petl
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 def fromcsvs(filepatterns, fieldnames=None):
@@ -139,6 +143,24 @@ def asmoney(value):
     """Represent the given value as currency"""
     return '${:.2f}'.format(round(float(value), 2))
 
+def asisodatetime(value):
+    """Convert a date as YYYY-MM-DD HH:MM:SS.UUU"""
+    try:
+        return datetime\
+            .strptime(value.strip(), '%m/%d/%Y %H:%M')\
+            .strftime('%Y-%m-%d %H:%I:00.000')
+    except ValueError:
+        if value:
+            logger.warn('Could not parse date: {}'.format(value))
+        return value
+
+def asnormpaytype(value):
+    if value and value == 'CASH':
+        return 'Cash'
+    elif value and value == 'CC CARD':
+        return 'Credit Card'
+    else:
+        return value
 
 def transform(verifone_filenames, cmt_filenames):
     """
@@ -148,11 +170,17 @@ def transform(verifone_filenames, cmt_filenames):
     3. Remove Shift # column.
     4. Remove Device Type column.
     5. Format Columns R, S, T, U, V, and W to be 2 decimal points and currency.
+    6. Round minutes to the nearest 15 minutes.
     """
     t_ver = fromcsvs(verifone_filenames, fieldnames=['Shift #', 'Trip #', 'Operator Name', 'Medallion', 'Device Type', 'Chauffeur #', 'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch'])\
-        .addfield('Data Source', 'verifone')
+        .addfield('Data Source', 'verifone')\
+        .convert('Payment Type', asnormpaytype)
     t_cmt = fromcsvs(cmt_filenames)\
-        .addfield('Data Source', 'cmt')
+        .addfield('Data Source', 'cmt')\
+        .convert('Meter On Datetime', asisodatetime)\
+        .convert('Meter Off Datetime', asisodatetime)
+
+    # TODO: Round minutes to nearest 15 minutes
 
     t = petl.cat(t_ver, t_cmt)\
         .cutout('Shift #')\
