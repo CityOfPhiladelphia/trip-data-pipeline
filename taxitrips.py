@@ -13,25 +13,61 @@ Script to perform the following steps for taxi trip data:
    instead create a column with a unique ID to represent each driver,
    based on the 'Chauffeur #' field in the CMT and Verifone files.
 
-For anonymizing chauffeur medallion numbers, create the following tables:
+In the database, first create the taxi_trips table:
+
+    CREATE TABLE taxi_trips (
+      trip_no VARCHAR(16),
+      operator_name NVARCHAR2(2000),
+      medallion VARCHAR(16),
+      chauffeur_no VARCHAR(16),
+      meter_on_datetime VARCHAR(24),
+      meter_off_datetime VARCHAR(24),
+      trip_length VARCHAR(16),
+      pickup_latitude VARCHAR(16),
+      pickup_longitude VARCHAR(16),
+      pickup_location NVARCHAR2(2000),
+      dropoff_latitude VARCHAR(16),
+      dropoff_longitude VARCHAR(16),
+      dropoff_location NVARCHAR2(2000),
+      fare VARCHAR(16),
+      tax VARCHAR(16),
+      tips VARCHAR(16),
+      tolls VARCHAR(16),
+      surcharge VARCHAR(16),
+      trip_total VARCHAR(16),
+      payment_type VARCHAR(16),
+      street_or_dispatch VARCHAR(32),
+      data_source VARCHAR(8)
+    )
+
+Also, create an index on what is a maximal unique identifier for taxi trips; we
+use it for upsertig records into the trips table:
+
+    CREATE INDEX taxi_trip_unique_id ON taxi_trips (
+      Trip_No, Medallion, Chauffeur_No, Meter_On_Datetime, Meter_Off_Datetime
+    )
+
+For anonymizing chauffeur and medallion numbers, create two tables to maintain a
+mapping from actual Medallion and Chauffeur numbers to arbitrary identifiers.
+With Oracle 12c+, use the following SQL:
 
     CREATE SEQUENCE chauffeur_no_seq;
     CREATE TABLE chauffeur_no_ids (
       ID           NUMBER DEFAULT chauffeur_no_seq.NEXTVAL,
-      Chauffeur_No VARCHAR2(4000)
+      Chauffeur_No VARCHAR2(16)
     );
 
     CREATE SEQUENCE medallion_seq;
     CREATE TABLE medallion_ids (
       ID        NUMBER DEFAULT medallion_seq.NEXTVAL,
-      Medallion VARCHAR2(4000)
+      Medallion VARCHAR2(16)
     );
 
 For Oracle pre-12c, use the following:
 
     CREATE TABLE chauffeur_no_ids (
       ID            NUMBER         NOT NULL,
-      Chauffeur_No  VARCHAR2(4000) NOT NULL);
+      Chauffeur_No  VARCHAR2(16) NOT NULL);
     CREATE INDEX chauffeur_no_idx ON chauffeur_no_ids (Chauffeur_No)
     CREATE SEQUENCE chauffeur_no_seq;
     CREATE OR REPLACE TRIGGER chauffeur_no_trig
@@ -45,7 +81,7 @@ For Oracle pre-12c, use the following:
 
     CREATE TABLE medallion_ids (
       ID         NUMBER         NOT NULL,
-      Medallion  VARCHAR2(4000) NOT NULL);
+      Medallion  VARCHAR2(16) NOT NULL);
     CREATE INDEX medallion_idx ON medallion_ids (Medallion)
     CREATE SEQUENCE medallion_seq;
     CREATE OR REPLACE TRIGGER medallion_trig
@@ -132,7 +168,7 @@ def transform(verifone_filenames, cmt_filenames):
 
 
 def upload(table_filename, username, password, db_conn_string,
-           wrap_table=lambda t: t, group_size=1000):
+           wrap_table=lambda t: t, group_size=10000):
     """
     Load a merged taxi trips table from a CSV file into the database (first step
     in anonymization process). Only insert new data.
