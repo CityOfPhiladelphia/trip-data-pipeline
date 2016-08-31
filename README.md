@@ -42,4 +42,5 @@ taxitrips.py anonymize -u <username> -p <password> -d <dsn>
 ## Notes
 
 * A full year of data could have around 8,000,000 data points. Step (1) above
-  may take about 20 minutes to merge and transform this data.
+  may take about 20 minutes to merge and transform this data. Step (2) may take
+  another 10 minutes.

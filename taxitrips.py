@@ -196,7 +196,7 @@ def transform(verifone_filenames, cmt_filenames):
 
 
 def upload(table_filename, username, password, db_conn_string,
-           wrap_table=lambda t: t, group_size=10000):
+           wrap_table=lambda t: t, group_size=100000):
     """
     Load a merged taxi trips table from a CSV file into the database (first step
     in anonymization process). Only insert new data.
@@ -266,7 +266,9 @@ def todb_upsert(table, table_name, cursor, group_size=1000):
 
     for row_group in grouper(group_size, table.values(columns)):
         row_group = filter(None, row_group)
-        cursor.executemany(sql, list(row_group))
+        list_of_rows = list(row_group)
+        cursor.executemany(sql, list_of_rows)
+    cursor.connection.commit()
 
 
 def anonymize(username, password, dsn, table_name, column_table_pairs):
