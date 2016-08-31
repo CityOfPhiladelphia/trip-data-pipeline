@@ -119,7 +119,11 @@ from contextlib import contextmanager
 from datetime import datetime
 from glob import iglob
 from itertools import chain
+import os
 import petl
+
+# Prevent cx_Oracle from converting everything to ASCII.
+os.environ['NLS_LANG'] = '.UTF8'
 
 import logging
 logger = logging.getLogger(__name__)
