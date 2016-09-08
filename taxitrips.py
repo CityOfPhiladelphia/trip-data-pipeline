@@ -116,11 +116,9 @@ Updates weekly.
 
 import click
 from contextlib import contextmanager
-from datetime import datetime
-from glob import iglob
-from itertools import chain
 import os
-import petl
+import phltaxitrips.petl_ext as petl
+
 
 # Prevent cx_Oracle from converting everything to ASCII.
 os.environ['NLS_LANG'] = '.UTF8'
@@ -128,43 +126,6 @@ os.environ['NLS_LANG'] = '.UTF8'
 import logging
 logger = logging.getLogger(__name__)
 
-
-def fromcsvs(filepatterns, fieldnames=None):
-    """
-    Create a table from a list of file names. Fieldnames is an iterable which,
-    when specified, is pushed on as the header for the table.
-    """
-    t = None
-    for fname in chain.from_iterable(iglob(p) for p in filepatterns):
-        t_partial = petl.fromcsv(fname)
-        if fieldnames is not None:
-            t_partial = t_partial.pushheader(fieldnames)
-        t = t_partial if t is None else t.cat(t_partial)
-    return t
-
-
-def asmoney(value):
-    """Represent the given value as currency"""
-    return '${:.2f}'.format(round(float(value), 2))
-
-def asisodatetime(value):
-    """Convert a date as YYYY-MM-DD HH:MM:SS.UUU"""
-    try:
-        return datetime\
-            .strptime(value.strip(), '%m/%d/%Y %H:%M')\
-            .strftime('%Y-%m-%d %H:%I:00.000')
-    except ValueError:
-        if value:
-            logger.warn('Could not parse date: {}'.format(value))
-        return value
-
-def asnormpaytype(value):
-    if value and value == 'CASH':
-        return 'Cash'
-    elif value and value == 'CC CARD':
-        return 'Credit Card'
-    else:
-        return value
 
 def transform(verifone_filenames, cmt_filenames):
     """
@@ -176,10 +137,10 @@ def transform(verifone_filenames, cmt_filenames):
     5. Format Columns R, S, T, U, V, and W to be 2 decimal points and currency.
     6. Round minutes to the nearest 15 minutes.
     """
-    t_ver = fromcsvs(verifone_filenames, fieldnames=['Shift #', 'Trip #', 'Operator Name', 'Medallion', 'Device Type', 'Chauffeur #', 'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch'])\
+    t_ver = petl.fromcsvs(verifone_filenames, fieldnames=['Shift #', 'Trip #', 'Operator Name', 'Medallion', 'Device Type', 'Chauffeur #', 'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch'])\
         .addfield('Data Source', 'verifone')\
         .convert('Payment Type', asnormpaytype)
-    t_cmt = fromcsvs(cmt_filenames)\
+    t_cmt = petl.fromcsvs(cmt_filenames)\
         .addfield('Data Source', 'cmt')\
         .convert('Meter On Datetime', asisodatetime)\
         .convert('Meter Off Datetime', asisodatetime)
@@ -216,7 +177,7 @@ def upload(table_filename, username, password, db_conn_string,
     with transaction(username, password, db_conn_string) as cursor:
         t = petl.fromcsv(table_filename)\
             .setheader(['Trip_No', 'Operator_Name', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime', 'Trip_Length', 'Pickup_Latitude', 'Pickup_Longitude', 'Pickup_Location', 'Dropoff_Latitude', 'Dropoff_Longitude', 'Dropoff_Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip_Total', 'Payment_Type', 'Street_or_Dispatch', 'Data_Source'])
-        todb_upsert(wrap_table(t), 'taxi_trips', cursor, group_size=group_size)
+        petl.todb_upsert(wrap_table(t), 'taxi_trips', cursor, group_size=group_size)
 
     return t
 
@@ -231,48 +192,6 @@ def transaction(username, password, db_conn_string):
 
     conn.commit()
     conn.close()
-
-
-def grouper(n, iterable, fillvalue=None):
-    """
-    Yield groups of size n from the iterable (e.g.,
-    grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx").
-    Pulled from itertools recipes.
-    """
-    from itertools import zip_longest
-    args = [iter(iterable)] * n
-    return zip_longest(fillvalue=fillvalue, *args)
-
-
-def todb_upsert(table, table_name, cursor, group_size=1000):
-    # Create a list of the column names
-    columns = table.fieldnames()
-    id_columns = {'Trip_No', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime'}
-    non_id_columns = set(columns) - id_columns
-
-    # Build the clauses for the SQL statement
-    select_clause = 'SELECT {} FROM DUAL'.format(
-        ', '.join(':{0} AS {0}'.format(c) for c in columns))
-    on_clause = ' AND '.join('orig.{0} = new.{0}'.format(c) for c in id_columns)
-    update_clause = 'UPDATE SET {}'.format(
-        ', '.join('orig.{0} = new.{0}'.format(c) for c in non_id_columns))
-    insert_clause = 'INSERT ({}) VALUES ({})'.format(
-        ', '.join('orig.{}'.format(c) for c in columns),
-        ', '.join('new.{}'.format(c) for c in columns))
-
-    sql = '''
-    MERGE INTO {} orig
-        USING ({}) new
-        ON ({})
-        WHEN MATCHED THEN {}
-        WHEN NOT MATCHED THEN {}
-    '''.format(table_name, select_clause, on_clause, update_clause, insert_clause)
-
-    for row_group in grouper(group_size, table.values(columns)):
-        row_group = filter(None, row_group)
-        list_of_rows = list(row_group)
-        cursor.executemany(sql, list_of_rows)
-    cursor.connection.commit()
 
 
 def anonymize(username, password, dsn, table_name, column_table_pairs):

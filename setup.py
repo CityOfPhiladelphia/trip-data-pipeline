@@ -2,6 +2,7 @@ from distutils import setup
 
 setup(
     name='phl-taxi-trip-data-pipeline',
-    version='1.0.0'
-    scripts=['taxitrips.py']
+    version='1.0.1',
+    packages=['phltaxitrips'],
+    scripts=['taxitrips.py'],
 )
