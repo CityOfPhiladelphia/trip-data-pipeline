@@ -33,10 +33,10 @@ taxitrips.py --help
 taxitrips.py transform -v "testdata/verifone*" -c "testdata/cmt*" > testdata/merged.csv
 
 # (2) Upsert the generated data into an Oracle database
-taxitrips.py upload testdata/merged.scv -u <username> -p <password> -d <dsn>
+taxitrips.py upload testdata/merged.scv -d <db_conn_str>
 
 # (3) Update the anonymization tables
-taxitrips.py anonymize -u <username> -p <password> -d <dsn>
+taxitrips.py anonymize -d <db_conn_str>
 ```
 
 ## Notes

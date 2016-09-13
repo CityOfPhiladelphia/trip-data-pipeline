@@ -42,7 +42,7 @@ def asnormpaytype(value):
     else:
         return value
 
-def todb_upsert(table, table_name, cursor, group_size=1000):
+def todb_upsert(table, table_name, db, group_size=1000):
     # Create a list of the column names
     columns = table.fieldnames()
     id_columns = {'Trip_No', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime'}
@@ -69,7 +69,7 @@ def todb_upsert(table, table_name, cursor, group_size=1000):
     for row_group in grouper(group_size, table.values(columns)):
         row_group = filter(None, row_group)
         list_of_rows = list(row_group)
-        cursor.executemany(sql, list_of_rows)
-    cursor.connection.commit()
+        db._c.executemany(sql, list_of_rows)
+    db.save()
 
 Table.todb_upsert = todb_upsert
