@@ -1,7 +1,9 @@
 from contextlib import contextmanager
+from datetime import datetime
 import datum
 import os
-import .petl_ext as petl
+import phltaxitrips.petl_ext as petl
+from phltaxitrips.petl_ext import asnormpaytype, asisodatetime, asmoney
 
 
 # Prevent cx_Oracle from converting everything to ASCII.
@@ -33,7 +35,8 @@ def transform(verifone_filenames, cmt_filenames):
         .convert('Meter Off Datetime', asisodatetime)
 
     # Concatenate verifone and cmt tables, and do further transformations
-    concat_table = petl.cat(t_ver, t_cmt)\
+    concat_table = petl.cat(ver_table, cmt_table)\
+        .cutout('Trip #')\
         .cutout('Shift #')\
         .cutout('Device Type')\
         .cutout('Pickup Location')\
@@ -70,6 +73,7 @@ def transform(verifone_filenames, cmt_filenames):
         .addfield('Dropoff Hour', lambda row: row._dropoff_dt.hour)\
         .addfield('Dropoff DOW', lambda row: row._dropoff_dt.strftime('%w'))\
         .addfield('Dropoff Day of Week', lambda row: row._dropoff_dt.strftime('%A'))\
+        .addfield('Trip Duration (minutes)', lambda row: int((row._dropoff_dt - row._pickup_dt).total_seconds() / 60), index=5)\
         .cutout('_pickup_dt', '_dropoff_dt')
 
     return concat_table

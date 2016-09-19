@@ -12,7 +12,7 @@ def fromcsvs(filepatterns, fieldnames=None):
     """
     t = None
     for fname in chain.from_iterable(iglob(p) for p in filepatterns):
-        t_partial = petl.fromcsv(fname)
+        t_partial = fromcsv(fname)
         if fieldnames is not None:
             t_partial = t_partial.pushheader(fieldnames)
         t = t_partial if t is None else t.cat(t_partial)
@@ -21,14 +21,14 @@ def fromcsvs(filepatterns, fieldnames=None):
 
 def asmoney(value):
     """Represent the given value as currency"""
-    return '${:.2f}'.format(round(float(value), 2))
+    return '{:.2f}'.format(round(float(value), 2))
 
 def asisodatetime(value):
     """Convert a date as YYYY-MM-DD HH:MM:SS.UUU"""
     try:
         return datetime\
             .strptime(value.strip(), '%m/%d/%Y %H:%M')\
-            .strftime('%Y-%m-%d %H:%I:00.000')
+            .strftime('%Y-%m-%d %H:%M:00.000')
     except ValueError:
         if value:
             logger.warn('Could not parse date: {}'.format(value))
