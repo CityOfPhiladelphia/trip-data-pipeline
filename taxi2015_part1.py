@@ -88,12 +88,12 @@ total_amount_c = {}
 payment_type_c = {}
 street_dispatch_c = {}
 data_source_c = {}
-XYp = ''
+XY_p = {}
 XY_cp = {}
-XYd = ''
+XY_d = {}
 XY_cd = {}
 XY = ''
-XY_c = {}
+#XY_c = {}
 ret_big = ''
 
 # Here we go
@@ -126,12 +126,12 @@ try:
 
         # Just for testing
         update_count_dict(medallion_c, data.medallion)
-        update_count_dict(trip_id_c, data.trip_id)
+        #update_count_dict(trip_id_c, data.trip_id)
         update_count_dict(operator_name_c, data.operator_name)
         update_count_dict(chauffeur_id_c, data.chauffeur_id)
         update_count_dict(trip_distance_c, data.trip_distance)
-        update_count_dict(pickup_loc_c, data.pickup_loc)
-        update_count_dict(dropoff_loc_c, data.dropoff_loc)
+        #update_count_dict(pickup_loc_c, data.pickup_loc)
+        #update_count_dict(dropoff_loc_c, data.dropoff_loc)
         update_count_dict(fare_amount_c, data.fare_amount)
         update_count_dict(tax_c, data.tax)
         update_count_dict(tip_amount_c, data.tip_amount)
@@ -157,17 +157,17 @@ try:
             data.pickup_latitude = '-2'
             data.dropoff_latitude = '-2'
 
-        if data.pickup_longitude != '-2' and lon1 < -76.0 or lon1 > -74.5 or lon2 < -76.0 or lon2 > -74.5 or \
-                        lat1 < 39.5 or lat1 > 40.5 or lat2 < 39.5 or lat2 > 40.5:
-            lon1 = 0
-            lon2 = 0
-            lat1 = 0
-            lat2 = 0
-            data.pickup_longitude = '-1'
-            data.dropoff_longitude = '-1'
-            data.pickup_latitude = '-1'
-            data.dropoff_latitude = '-1'
-            badCoord += 1
+        # if data.pickup_longitude != '-2' and lon1 < -76.0 or lon1 > -74.5 or lon2 < -76.0 or lon2 > -74.5 or \
+        #                 lat1 < 39.5 or lat1 > 40.5 or lat2 < 39.5 or lat2 > 40.5:
+        #     lon1 = 0
+        #     lon2 = 0
+        #     lat1 = 0
+        #     lat2 = 0
+        #     data.pickup_longitude = '-1'
+        #     data.dropoff_longitude = '-1'
+        #     data.pickup_latitude = '-1'
+        #     data.dropoff_latitude = '-1'
+        #     badCoord += 1
 
         if len(data.pickup_longitude) > 8:
             data.pickup_longitude = data.pickup_longitude[:8]
@@ -186,7 +186,7 @@ try:
                              str(round(lat2, 4)))
 
         # This is for creating the unique list of Lat/Lon
-        update_count_dict(XY_c, XY)
+        update_count_dict(XY_d, XY)
 
         XY_id_d = '%s%s' % (str(round(round(lon2 * -1, 4) * 10000)),
                             str(round(round(lat2, 4) * 10000)))
@@ -197,7 +197,7 @@ try:
                              str(round(lat1, 4)))
 
         # This is for creating the unique list of Lat/Lon
-        update_count_dict(XY_c, XY)
+        update_count_dict(XY_p, XY)
 
         XY_id_p = '%s%s' % (str(round(round(lon1 * -1, 4) * 10000)),
                             str(round(round(lat1, 4) * 10000)))
@@ -207,6 +207,7 @@ try:
 
         if j % 100000 == 0:
             print(j)
+
 
             print(time.time() - start, "seconds.")
 
@@ -222,13 +223,13 @@ except:
     print('Unexpected error: ' + sys.exc_info()[0])
 
 # Just for testing
-print_unique_count_list(trip_id_c, 'trip_id_c.csv')
+#print_unique_count_list(trip_id_c, 'trip_id_c.csv')
 print_unique_count_list(operator_name_c, 'operator_name_c.csv')
 print_unique_count_list(chauffeur_id_c, 'chauffeur_id_c.csv')
 print_unique_count_list(medallion_c, 'medallion_c.csv')
 print_unique_count_list(trip_distance_c, 'trip_distance_c.csv')
-print_unique_count_list(pickup_loc_c, 'pickup_loc_c.csv')
-print_unique_count_list(dropoff_loc_c, 'dropoff_loc_c.csv')
+# print_unique_count_list(pickup_loc_c, 'pickup_loc_c.csv')
+# print_unique_count_list(dropoff_loc_c, 'dropoff_loc_c.csv')
 print_unique_count_list(fare_amount_c, 'fare_amount_c.csv')
 print_unique_count_list(tax_c, 'tax_c.csv')
 print_unique_count_list(tip_amount_c, 'tip_amount_c.csv')
@@ -240,6 +241,7 @@ print_unique_count_list(street_dispatch_c, 'street_dispatch_c.csv')
 print_unique_count_list(data_source_c, 'data_source_c.csv')
 
 # Use this for the unique list of Lat/Lon
-print_unique_count_list(XY_c, 'XY_c.csv')
-
+# print_unique_count_list(XY_c, 'XY_c.csv')
+print_unique_count_list(XY_p, 'XY_p.csv')
+print_unique_count_list(XY_d, 'XY_d.csv')
 print(time.time() - begin, "seconds total.")

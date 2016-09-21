@@ -28,6 +28,7 @@ class XYCode:
         self.lon_seg = row[5]
         self.lat_seg = row[6]
         self.seg_id = row[7]
+        self.hexbin_id = row[8]
 
 
 def create_xy_lookup(dir):
@@ -37,7 +38,7 @@ def create_xy_lookup(dir):
         rd = reader(f)
         for row in rd:
             r = XYCode(row)
-            lookup[r.xy_id] = "%s,%s,%s,%s,%s,%s,%s" % (r.zip, r.block, r.lon_seg, r.lat_seg, r.lon_centroid, r.lat_centroid,r.seg_id)
+            lookup[r.xy_id] = "%s,%s,%s,%s,%s,%s,%s,%s" % (r.zip, r.block, r.lon_seg, r.lat_seg, r.lon_centroid, r.lat_centroid,r.seg_id,r.hexbin_id)
     except:
         print('Error opening ' + dir + 'XY_Zip_Block.csv')
 
@@ -128,10 +129,11 @@ class TaxiData:
 start = time.time()
 dir = os.path.dirname(os.path.realpath(__file__)) + "\\"
 j = 0
+ret_big = ''
 f_out = open(dir + 'taxiout.csv', 'w')
 header = 'rec_id,operator_name,medallion,chauffeur_id,pickup_datetime,dropoff_datetime,trip_distance,' \
-         'xy_dist,heading,trip_minutes,pickup_latitude,pickup_longitude,pickup_latitude_seg,pickup_longitude_seg,pickup_latitude_centroid,pickup_longitude_centroid,pickup_seg_id,pickup_zip,pickup_block,pickup_month,pickup_day,pickup_hr,pickup_dow,' \
-         'dropoff_latitude,dropoff_longitude,dropoff_latitude_seg,dropoff_longitude_seg,dropoff_latitude_centroid,dropoff_longitude_centroid,dropoff_seg_id,dropoff_zip,dropoff_block,dropoff_month,dropoff_day,dropoff_hr,dropoff_dow,fare_amount,tax_amount,' \
+         'xy_dist,heading,trip_minutes,pickup_latitude,pickup_longitude,pickup_latitude_seg,pickup_longitude_seg,pickup_latitude_centroid,pickup_longitude_centroid,pickup_seg_id,pickup_hexbin_id,pickup_zip,pickup_block,pickup_month,pickup_day,pickup_hr,pickup_dow,' \
+         'dropoff_latitude,dropoff_longitude,dropoff_latitude_seg,dropoff_longitude_seg,dropoff_latitude_centroid,dropoff_longitude_centroid,dropoff_seg_id,dropoff_hexbin_id,dropoff_zip,dropoff_block,dropoff_month,dropoff_day,dropoff_hr,dropoff_dow,fare_amount,tax_amount,' \
          'tip_amount,surcharge_amount,tolls_amount,total_amount,payment_type,street_dispatch,data_source\n'
 # Don't write the header out for the table that is will be bulk loaded.  Just for testing.
 # f_out.write(header)
@@ -163,29 +165,61 @@ try:
 
         try:
             lon1 = float(data.pickup_longitude)
-            lon2 = float(data.dropoff_longitude)
             lat1 = float(data.pickup_latitude)
+
+        except:
+            lon1 = 0
+            lat1 = 0
+
+            data.pickup_longitude = '0'
+
+            data.pickup_latitude = '0'
+
+
+        try:
+
+            lon2 = float(data.dropoff_longitude)
+
             lat2 = float(data.dropoff_latitude)
         except:
-            lon1 = -75.3
-            lon2 = 39.85
-            lat1 = -75.3
-            lat2 = 39.85
-            data.pickup_longitude = '-2'
-            data.dropoff_longitude = '-2'
-            data.pickup_latitude = '-2'
-            data.dropoff_latitude = '-2'
 
-        if data.pickup_longitude != '-2' and lon1 < -76.0 or lon1 > -74.5 or lon2 < -76.0 or lon2 > -74.5 or \
-                        lat1 < 39.5 or lat1 > 40.5 or lat2 < 39.5 or lat2 > 40.5:
-            lon1 = -75.3
-            lon2 = 39.85
-            lat1 = -75.3
-            lat2 = 39.85
-            data.pickup_longitude = '-1'
-            data.dropoff_longitude = '-1'
-            data.pickup_latitude = '-1'
-            data.dropoff_latitude = '-1'
+            lon2 = 0
+
+            lat2 = 0
+
+            data.dropoff_longitude = '0'
+
+            data.dropoff_latitude = '0'
+
+        if data.pickup_longitude != '0'  and lon1 < -78.0 or lon1 > -73  or \
+                        lat1 < 38 or lat1 > 42 :
+            lon1 = 0
+
+            lat1 = 0
+
+            lon1 = 0
+
+            lat1 = 0
+
+            data.pickup_longitude = '0'
+
+            data.pickup_latitude = '0'
+
+
+        if data.pickup_longitude != '0' and lon2 < -78.0 or lon2 > -73 or \
+                        lat2 < 38 or lat2 > 42:
+
+            lon2 = 0
+
+            lat2 = 0
+
+            lon2 = 0
+
+            lat2 = 0
+
+            data.dropoff_longitude = '0'
+
+            data.dropoff_latitude = '0'
 
         if len(data.pickup_longitude) > 8:
             data.pickup_longitude = data.pickup_longitude[:8]
@@ -231,6 +265,7 @@ try:
             lon_centroid_d = temp[4]
             lat_centroid_d = temp[5]
             seg_id_d  = temp[6]
+            hexbin_id_d = temp[7]
         else:
             zip_d = ''
             block_d = ''
@@ -239,6 +274,7 @@ try:
             lon_centroid_d = '0'
             lat_centroid_d = '0'
             seg_id_d = ''
+            hexbin_id_d = ''
 
         if pickupzone != '':
             temp = pickupzone.split(',')
@@ -249,14 +285,16 @@ try:
             lon_centroid_p = temp[4]
             lat_centroid_p = temp[5]
             seg_id_p = temp[6]
+            hexbin_id_p = temp[7]
         else:
             zip_p = ''
             block_p = ''
             lon_seg_p = '0'
             lat_seg_p = '0'
-            lon_centroid_d = '0'
-            lat_centroid_d = '0'
-            seg_id_d = ''
+            lon_centroid_p = '0'
+            lat_centroid_p = '0'
+            seg_id_p = ''
+            hexbin_id_p = ''
 
         pattern = '%Y-%m-%d %H:%M:%S.%f'
         try:
@@ -266,7 +304,9 @@ try:
             dropoff_month = dt_dropoff.month
             dropoff_day = dt_dropoff.day
             dropoff_hr = dt_dropoff.hour
-            dropoff_dow = dt_dropoff.strftime("%w")
+            # % u - Day of the week(Monday is 1, 1. .7)
+            # % w - Day of the week(Sunday is 0, 0. .6)
+            dropoff_dow = dt_dropoff.strftime("%u")
             dropoff_weekday = dt_dropoff.strftime("%A")
         except ValueError:
             # print('Date error')
@@ -277,7 +317,8 @@ try:
             dropoff_month = dt_dropoff.month
             dropoff_day = dt_dropoff.day
             dropoff_hr = dt_dropoff.hour
-            dropoff_dow = dt_dropoff.strftime("%w")
+
+            dropoff_dow = dt_dropoff.strftime("%u")
             dropoff_weekday = dt_dropoff.strftime("%A")
 
         try:
@@ -286,7 +327,7 @@ try:
             pickup_month = dt_pickup.month
             pickup_day = dt_pickup.day
             pickup_hr = dt_pickup.hour
-            pickup_dow = dt_pickup.strftime("%w")
+            pickup_dow = dt_pickup.strftime("%u")
             pickup_weekday = dt_pickup.strftime("%A")
         except ValueError:
             # print('Date error')
@@ -297,7 +338,7 @@ try:
             pickup_month = dt_pickup.month
             pickup_day = dt_pickup.day
             pickup_hr = dt_pickup.hour
-            pickup_dow = dt_pickup.strftime("%w")
+            pickup_dow = dt_pickup.strftime("%u")
             pickup_weekday = dt_pickup.strftime("%A")
 
         epoch_p = int(time.mktime(time.strptime(data.pickup_datetime, pattern)))
@@ -305,8 +346,10 @@ try:
         trip_min = 0
         if epoch_d != 0 and epoch_p != 0:
             trip_min = (epoch_d - epoch_p) / 60
+        if trip_min < 0:
+            trip_min = -1
 
-        ret = '%i,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' % (
+        ret = '%i,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' % (
         i,
         data.operator_name,
         data.medallion,
@@ -324,6 +367,7 @@ try:
         lat_centroid_p,
         lon_centroid_p,
         seg_id_p,
+        hexbin_id_p,
         zip_p,
         block_p,
         str(pickup_month),
@@ -338,6 +382,7 @@ try:
         lat_centroid_d,
         lon_centroid_d,
         seg_id_d,
+        hexbin_id_d,
         zip_d,
         block_d,
         str(dropoff_month),
