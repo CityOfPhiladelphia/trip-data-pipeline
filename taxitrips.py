@@ -17,7 +17,8 @@ Updates weekly.
 """
 
 import click
-from phltaxitrips import transform, upload, anonymize
+from phltaxitrips import (normalize, upload, update_anon, anonymize, fuzzy,
+    RAW_COLUMNS_CSV, RAW_COLUMNS_DB, PUBLIC_COLUMNS_CSV, PUBLIC_COLUMNS_DB)
 
 
 @click.group()
@@ -25,29 +26,55 @@ def cli():
     pass
 
 
-@cli.command(name='transform')
+@cli.command(name='normalize')
 @click.option('--verifone', '-v', type=click.Path(), multiple=True, help='Verifone data files')
 @click.option('--cmt', '-c', type=click.Path(), multiple=True, help='CMT data files')
-def transform_cmd(verifone, cmt):
-    transform(verifone, cmt)\
+def normalize_cmd(verifone, cmt):
+    normalize(verifone, cmt)\
         .progress()\
         .tocsv()
 
 
-@cli.command(name='upload')
+@cli.command(name='uploadraw')
 @click.option('--database', '-d', help='The database connection string')
-@click.argument('csv_filename')
-def upload_cmd(csv_filename, database):
-    upload(csv_filename, database, wrap_table=lambda t: t.progress())
+@click.argument('csvfile', type=click.Path())
+def uploadraw_cmd(csvfile, database):
+    upload(csvfile, database, 'taxi_trips', RAW_COLUMNS_CSV, RAW_COLUMNS_DB, wrap_table=lambda t: t.progress())
+    update_anon(database, 'taxi_trips', [
+        ('Chauffeur_No', 'chauffeur_no_ids'),
+        ('Medallion', 'medallion_ids'),
+    ])
 
 
 @cli.command(name='anonymize')
 @click.option('--database', '-d', help='The database connection string')
-def anonymize_cmd(database):
-    anonymize(database, 'taxi_trips', [
-        ('Chauffeur_No', 'chauffeur_no_ids'),
-        ('Medallion', 'medallion_ids'),
-    ])
+@click.option('--log', '-l', help='Log level. Default is debug')
+@click.argument('csvfile', type=click.Path())
+def anonymize_cmd(csvfile, database, log):
+    if log:
+        import logging
+        logging.basicConfig(level=getattr(logging, log.upper()))
+    anonymize(csvfile, database, [
+        ('Chauffeur #', 'chauffeur_no_ids', 'Chauffeur_No'),
+        ('Medallion', 'medallion_ids', 'Medallion'),
+    ])\
+        .progress(10000)\
+        .tocsv()
+
+@cli.command(name='fuzzy')
+@click.argument('csvfile', type=click.Path())
+@click.option('--regions', '-r', type=click.File('r'), help='Shapes to be used for binning trips inside of the City')
+def fuzzy_cmd(csvfile, regions):
+    fuzzy(csvfile, regions)\
+        .progress()\
+        .tocsv()
+
+@cli.command(name='uploadpublic')
+@click.option('--database', '-d', help='The database connection string')
+@click.argument('csvfile', type=click.Path())
+def uploadpublic_cmd(csvfile, database):
+    upload(csvfile, database, 'public_taxi_trips', PUBLIC_COLUMNS_CSV, PUBLIC_COLUMNS_DB, wrap_table=lambda t: t.progress(10000))\
+        .tocsv()
 
 
 if __name__ == '__main__':

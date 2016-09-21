@@ -5,6 +5,10 @@ Scripts to clean up
 
 ## Installation
 
+Requires libspatialindex for fuzzy-ing locations.
+
+sudo apt-get install libspatialindex-dev
+
 pip install https://github.com/CityOfPhiladelphia/taxi-trip-data-pipeline.git#egg=taxi-trip-data-pipeline
 
 
@@ -30,13 +34,19 @@ taxitrips.py --help
 # EXAMPLES:
 
 # (1) Save result to a file:
-taxitrips.py transform -v "testdata/verifone*" -c "testdata/cmt*" > testdata/merged.csv
+taxitrips.py normalize -v "testdata/verifone*" -c "testdata/cmt*" > testdata/merged.csv
 
 # (2) Upsert the generated data into an Oracle database
-taxitrips.py upload testdata/merged.scv -d <db_conn_str>
+taxitrips.py uploadraw testdata/merged.csv -d <db_conn_str>
 
 # (3) Update the anonymization tables
-taxitrips.py anonymize -d <db_conn_str>
+taxitrips.py anonymize testdata/merged.csv -d <db_conn_str> > testdata/anonymized.csv
+
+# (4) Fuzzy the locations and times
+taxitrips.py fuzzy testdata/anonymized.csv > testdata/fuzzied.csv
+
+# (5) Upsert the public data table in to Oracle
+taxitrips.py uploadpublic testdata/fuzzied.csv -d <db_conn_str>
 ```
 
 ## Notes

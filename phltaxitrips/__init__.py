@@ -4,6 +4,7 @@ import datum
 import os
 import phltaxitrips.petl_ext as petl
 from phltaxitrips.petl_ext import asnormpaytype, asisodatetime, asmoney
+import re
 
 
 # Prevent cx_Oracle from converting everything to ASCII.
@@ -12,8 +13,12 @@ os.environ['NLS_LANG'] = '.UTF8'
 import logging
 logger = logging.getLogger(__name__)
 
+RAW_COLUMNS_CSV = ['Operator Name', 'Medallion', 'Chauffeur #',  'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch',    'Data Source']
+RAW_COLUMNS_DB  = ['Operator_Name', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime', 'Trip_Length', 'Pickup_Latitude', 'Pickup_Longitude', 'Pickup_Location', 'Dropoff_Latitude', 'Dropoff_Longitude', 'Dropoff_Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip_Total', 'Payment_Type', 'Street_or_Dispatch', 'Data_Source']
+PUBLIC_COLUMNS_CSV = ['Operator Name', 'Anonymized Medallion', 'Anonymized Chauffeur #',  'Pickup General Time', 'Dropoff General Time', 'Trip Length', 'Pickup Zip Code', 'Pickup Region Centroid Latitude', 'Pickup Region Centroid Longitude', 'Pickup Region ID', 'Dropoff Zip Code', 'Dropoff Region Centroid Latitude', 'Dropoff Region Centroid Longitude', 'Dropoff Region ID', 'Region Map Version', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch',    'Data Source']
+PUBLIC_COLUMNS_DB  = ['Operator Name', 'Anonymized_Medallion', 'Anonymized_Chauffeur_No', 'Pickup_General_Time', 'Dropoff_General_Time', 'Trip_Length', 'Pickup_Zip_Code', 'Pickup_Region_Centroid_Latitude', 'Pickup_Region_Centroid_Longitude', 'Pickup_Region_ID', 'Dropoff_Zip_Code', 'Dropoff_Region_Centroid_Latitude', 'Dropoff_Region_Centroid_Longitude', 'Dropoff_Region_ID', 'Region_Map_Version', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip_Total', 'Payment_Type', 'Street_or_Dispatch', 'Data_Source']
 
-def transform(verifone_filenames, cmt_filenames):
+def normalize(verifone_filenames, cmt_filenames):
     """
     1. Combine CMT/Verifone data
     2. Add a new column that specifies whether each trip came from CMT or
@@ -26,7 +31,9 @@ def transform(verifone_filenames, cmt_filenames):
     # Load and normalize Verifone tables
     ver_table = petl.fromcsvs(verifone_filenames, fieldnames=['Shift #', 'Trip #', 'Operator Name', 'Medallion', 'Device Type', 'Chauffeur #', 'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch'])\
         .addfield('Data Source', 'verifone')\
-        .convert('Payment Type', asnormpaytype)
+        .convert('Payment Type', asnormpaytype)\
+        .convert('Meter On Datetime', lambda val: val[:19] if val else '')\
+        .convert('Meter Off Datetime', lambda val: val[:19] if val else '')
 
     # Load and normalize CMT tables
     cmt_table = petl.fromcsvs(cmt_filenames)\
@@ -39,8 +46,6 @@ def transform(verifone_filenames, cmt_filenames):
         .cutout('Trip #')\
         .cutout('Shift #')\
         .cutout('Device Type')\
-        .cutout('Pickup Location')\
-        .cutout('Dropoff Location')\
         .convert('Fare', asmoney)\
         .convert('Tax', asmoney)\
         .convert('Tips', asmoney)\
@@ -49,37 +54,132 @@ def transform(verifone_filenames, cmt_filenames):
         .convert('Trip Total', asmoney)\
 
     # Additional data suggested by Tom Swanson
-    dt_pattern = '%Y-%m-%d %H:%M:%S.%f'
-    def parse_date(field):
-        def parse_date_from_row(row):
-            try:
-                return datetime.strptime(row[field], dt_pattern)
-            except ValueError:
-                return datetime(1970, 1, 1)
-        return parse_date_from_row
-
+    dt_pattern = '%Y-%m-%d %H:%M:%S'
     concat_table = concat_table\
-        .addfield('_pickup_dt', parse_date('Meter On Datetime'))\
-        .addfield('_dropoff_dt', parse_date('Meter Off Datetime'))\
-        .addfield('Pickup Year', lambda row: row._pickup_dt.year)\
-        .addfield('Pickup Month', lambda row: row._pickup_dt.month)\
-        .addfield('Pickup Day', lambda row: row._pickup_dt.day)\
-        .addfield('Pickup Hour', lambda row: row._pickup_dt.hour)\
-        .addfield('Pickup DOW', lambda row: row._pickup_dt.strftime('%w'))\
-        .addfield('Pickup Day of Week', lambda row: row._pickup_dt.strftime('%A'))\
-        .addfield('Dropoff Year', lambda row: row._dropoff_dt.year)\
-        .addfield('Dropoff Month', lambda row: row._dropoff_dt.month)\
-        .addfield('Dropoff Day', lambda row: row._dropoff_dt.day)\
-        .addfield('Dropoff Hour', lambda row: row._dropoff_dt.hour)\
-        .addfield('Dropoff DOW', lambda row: row._dropoff_dt.strftime('%w'))\
-        .addfield('Dropoff Day of Week', lambda row: row._dropoff_dt.strftime('%A'))\
-        .addfield('Trip Duration (minutes)', lambda row: int((row._dropoff_dt - row._pickup_dt).total_seconds() / 60), index=5)\
+        .addfields(
+            ('_pickup_dt', petl.parsedate('Meter On Datetime', dt_pattern)),
+            ('_dropoff_dt', petl.parsedate('Meter Off Datetime', dt_pattern)))\
+        .addfields(
+            ('Pickup Year', lambda row: row._pickup_dt.year if row._pickup_dt else None),
+            ('Pickup Month', lambda row: row._pickup_dt.month if row._pickup_dt else None),
+            ('Pickup Day', lambda row: row._pickup_dt.day if row._pickup_dt else None),
+            ('Pickup Hour', lambda row: row._pickup_dt.hour if row._pickup_dt else None),
+            ('Pickup DOW', lambda row: row._pickup_dt.strftime('%w') if row._pickup_dt else None),
+            ('Pickup Day of Week', lambda row: row._pickup_dt.strftime('%A') if row._pickup_dt else None),
+            ('Pickup General Time', lambda row: row._pickup_dt.replace(minute=0, second=0) if row._pickup_dt else None),
+            ('Dropoff Year', lambda row: row._dropoff_dt.year if row._dropoff_dt else None),
+            ('Dropoff Month', lambda row: row._dropoff_dt.month if row._dropoff_dt else None),
+            ('Dropoff Day', lambda row: row._dropoff_dt.day if row._dropoff_dt else None),
+            ('Dropoff Hour', lambda row: row._dropoff_dt.hour if row._dropoff_dt else None),
+            ('Dropoff DOW', lambda row: row._dropoff_dt.strftime('%w') if row._dropoff_dt else None),
+            ('Dropoff Day of Week', lambda row: row._dropoff_dt.strftime('%A') if row._dropoff_dt else None),
+            ('Dropoff General Time', lambda row: row._dropoff_dt.replace(minute=0, second=0) if row._dropoff_dt else None))\
+        .addfield('Trip Duration (minutes)', lambda row: int((row._dropoff_dt - row._pickup_dt).total_seconds() / 60) if row._pickup_dt and row._dropoff_dt else None, index=5)\
         .cutout('_pickup_dt', '_dropoff_dt')
 
     return concat_table
 
 
-def upload(table_filename, db_conn_string,
+def load_shapes(geojson_file):
+    from shapely.geometry import shape
+    from rtree import index
+    import json
+
+    # load the initial collection from the geojson
+    collection = json.load(geojson_file)
+
+    # create a spatial index
+    idx = index.Index()
+
+    for feature in collection['features']:
+        # add the shapely-parsed shape onto each feature
+        feature['shape'] = shape(feature['geometry'])
+        feature['centroid'] = feature['shape'].centroid
+        # spatially index each feature
+        objid = feature['properties']['OBJECTID']
+        idx.insert(objid, feature['shape'].bounds, obj=feature)
+
+    return collection, idx
+
+
+def feature_property(latcol, lngcol, collection, property_name):
+    """
+    Return a function that will find a feature in a collection containing the
+    point in a given row, and return the value of a property on the feature.
+    """
+    _finder = find_feature(latcol, lngcol, collection)
+    def _getter(row):
+        feature = _finder(row)
+        return feature['properties'][property_name]
+    return _getter
+
+feature_mapping = {}
+def find_feature(latcol, lngcol, collection, idx, ndigits=4):
+    """
+    Return a function that will find a feature in a collection containing the
+    point in a given row.
+    """
+    from shapely.geometry import Point
+    def _finder(row):
+        try:
+            lat = round(float(row[latcol]), ndigits)
+            lng = round(float(row[lngcol]), ndigits)
+        except ValueError:
+            return None
+
+        key = (lat, lng, collection['version'])
+        if key in feature_mapping:
+            return feature_mapping[key]
+
+        point = Point(lng, lat)
+
+        # query the index for the point to narrow down the search space
+        indexed_items = idx.intersection((lng, lat, lng, lat), objects=True)
+        for item in indexed_items:
+            # search the matched features for one that contains the point
+            feature = item.object
+            if feature['shape'].contains(point):
+                feature_mapping[key] = feature
+                return feature
+        feature_mapping[key] = None
+    return _finder
+
+def rematch(pattern, field, matchgroup=1):
+    def _getmatch(row):
+        if isinstance(pattern, str):
+            pattern_c = re.compile(pattern)
+        match = pattern_c.search(row[field])
+        if match:
+            return match.group(matchgroup)
+    return _getmatch
+
+def fuzzy(csvfile, regionfile):
+    region_collection, idx = load_shapes(regionfile)
+
+    # Generalize the locations
+    zip_pattern = '.*[^\d](\d+)$'
+    table = petl.fromcsv(csvfile)\
+        .addfields(
+            ('pickup_region', find_feature('Pickup Latitude', 'Pickup Longitude', region_collection, idx)),
+            ('dropoff_region', find_feature('Dropoff Latitude', 'Dropoff Longitude', region_collection, idx)))\
+        .addfields(
+            ('Pickup Zip Code', rematch(zip_pattern, 'Pickup Location')),
+            ('Pickup Region Centroid Latitude', lambda row: row.pickup_region['centroid'].y if row.pickup_region else None),
+            ('Pickup Region Centroid Longitude', lambda row: row.pickup_region['centroid'].x if row.pickup_region else None),
+            ('Pickup Region ID', lambda row: row.pickup_region['properties']['OBJECTID'] if row.pickup_region else None),
+            ('Dropoff Zip Code', rematch(zip_pattern, 'Dropoff Location')),
+            ('Dropoff Region Centroid Latitude', lambda row: row.dropoff_region['centroid'].y if row.dropoff_region else None),
+            ('Dropoff Region Centroid Longitude', lambda row: row.dropoff_region['centroid'].x if row.dropoff_region else None),
+            ('Dropoff Region ID', lambda row: row.dropoff_region['properties']['OBJECTID'] if row.dropoff_region else None))\
+        .addfield('Region Map Version', region_collection['version'])\
+        .cutout('pickup_region', 'dropoff_region',
+                'Pickup Latitude', 'Pickup Longitude',
+                'Dropoff Latitude', 'Dropoff Longitude')
+
+    return table
+
+
+def upload(csvfile, db_conn_string, table_name, csv_fields, db_fields,
            wrap_table=lambda t: t, group_size=100000):
     """
     Load a merged taxi trips table from a CSV file into the database (first step
@@ -94,8 +194,9 @@ def upload(table_filename, db_conn_string,
     with the group_size keyword.
     """
     with db_conn(db_conn_string) as db:
-        t = petl.fromcsv(table_filename)\
-            .setheader(['Trip_No', 'Operator_Name', 'Medallion', 'Chauffeur_No', 'Meter_On_Datetime', 'Meter_Off_Datetime', 'Trip_Length', 'Pickup_Latitude', 'Pickup_Longitude', 'Pickup_Location', 'Dropoff_Latitude', 'Dropoff_Longitude', 'Dropoff_Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip_Total', 'Payment_Type', 'Street_or_Dispatch', 'Data_Source', 'Geom'])
+        t = petl.fromcsv(csvfile)\
+            .cut(csv_fields)\
+            .setheader(db_fields)
         petl.todb_upsert(wrap_table(t), 'taxi_trips', db, group_size=group_size)
 
     return t
@@ -103,13 +204,13 @@ def upload(table_filename, db_conn_string,
 
 @contextmanager
 def db_conn(db_conn_string):
-    db = datum.connection(db_conn_string)
+    db = datum.connect(db_conn_string)
     yield db
     db.save()
     db.close()
 
 
-def anonymize(db_conn_str, table_name, column_table_pairs):
+def update_anon(db_conn_str, table_name, column_table_pairs):
     """
     Create unique identifiers for chauffeurs and medallions in the taxi_trips
     table.
@@ -145,5 +246,23 @@ def anonymize(db_conn_str, table_name, column_table_pairs):
 
     with db_conn(db_conn_str) as db:
         for col, ids in column_table_pairs:
+            logger.info('Updating anonymization table {}'.format(ids))
             sql = make_sql(col, ids)
             db.execute(sql)
+
+def anonymize(csvfile, db_conn_str, field_tuples):
+    # download anonymization tables from the db
+    anon_mapping = {}
+    with db_conn(db_conn_str) as db:
+        for csvfield, table, dbfield in field_tuples:
+            logger.info('Loading anonymization mapping for {} from {}'.format(csvfield, table))
+            queryresults = db.execute('SELECT id, {} FROM {}'.format(dbfield, table))
+            anon_mapping[table] = {result[1]: result[0] for result in queryresults}
+
+    # add an anonymized field for each of the fields
+    table = petl.fromcsv(csvfile)
+    for csvfield, tablename, dbfield in field_tuples:
+        logger.info('Setting up anonymization for {}'.format(csvfield))
+        table = table.addfield('Anonymized ' + csvfield, lambda row, t=tablename, f=csvfield: anon_mapping[t][row[f]] if row[f] else None)
+
+    return table

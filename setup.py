@@ -8,6 +8,8 @@ setup(
     install_requires=[
         'datum',
         'petl',
+        'shapely',
+        'rtree'
     ],
     dependency_links=[
         'git+https://github.com/CityOfPhiladelphia/trip-data-pipeline.git@master#egg=datum',

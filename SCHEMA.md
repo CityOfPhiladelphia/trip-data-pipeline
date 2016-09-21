@@ -1,7 +1,7 @@
 In the database, first create the taxi_trips table:
 
+```sql
     CREATE TABLE taxi_trips (
-      trip_no VARCHAR(16),
       operator_name NVARCHAR2(2000),
       medallion VARCHAR(16),
       chauffeur_no VARCHAR(16),
@@ -22,21 +22,24 @@ In the database, first create the taxi_trips table:
       trip_total VARCHAR(16),
       payment_type VARCHAR(16),
       street_or_dispatch VARCHAR(32),
-      data_source VARCHAR(8),
-      geom sde.ST_GEOMETRY
+      data_source VARCHAR(8)
     )
+```
 
 Also, create an index on what is a maximal unique identifier for taxi trips; we
 use it for upsertig records into the trips table:
 
+```sql
     CREATE INDEX taxi_trip_unique_id ON taxi_trips (
-      Trip_No, Medallion, Chauffeur_No, Meter_On_Datetime, Meter_Off_Datetime
+      Medallion, Chauffeur_No, Meter_On_Datetime, Meter_Off_Datetime
     )
+```
 
 For anonymizing chauffeur and medallion numbers, create two tables to maintain a
 mapping from actual Medallion and Chauffeur numbers to arbitrary identifiers.
 With Oracle 12c+, use the following SQL:
 
+```sql
     CREATE SEQUENCE chauffeur_no_seq;
     CREATE TABLE chauffeur_no_ids (
       ID           NUMBER DEFAULT chauffeur_no_seq.NEXTVAL,
@@ -48,9 +51,11 @@ With Oracle 12c+, use the following SQL:
       ID        NUMBER DEFAULT medallion_seq.NEXTVAL,
       Medallion VARCHAR2(16)
     );
+```
 
 For Oracle pre-12c, use the following:
 
+```sql
     CREATE TABLE chauffeur_no_ids (
       ID            NUMBER         NOT NULL,
       Chauffeur_No  VARCHAR2(16) NOT NULL);
@@ -78,10 +83,9 @@ For Oracle pre-12c, use the following:
       INTO   :new.ID
       FROM   dual;
     END;
+```
 
 Finally, for the public, create the following view:
-
-    -- TODO: Round times to nearest 15 minutes
 
     CREATE MATERIALIZED VIEW anonymized_taxi_trips AS
         SELECT Trip_No, Operator_Name,
