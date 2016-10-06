@@ -1,9 +1,9 @@
 from distutils import setup
 
 setup(
-    name='phl-taxi-trip-data-pipeline',
+    name='phila-taxi-trip-data-pipeline',
     version='1.0.1',
-    packages=['phltaxitrips'],
+    packages=['phila_taxitrips'],
     scripts=['taxitrips.py'],
     install_requires=[
         'datum',

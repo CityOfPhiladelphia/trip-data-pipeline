@@ -2,8 +2,8 @@ from contextlib import contextmanager
 from datetime import datetime
 import datum
 import os
-import phltaxitrips.petl_ext as petl
-from phltaxitrips.petl_ext import asnormpaytype, asisodatetime, asmoney
+import phila_taxitrips.petl_ext as petl
+from phila_taxitrips.petl_ext import asnormpaytype, asisodatetime, asmoney
 import re
 
 
