@@ -54,3 +54,10 @@ taxitrips.py uploadpublic testdata/fuzzied.csv -d <db_conn_str>
 * A full year of data could have around 8,000,000 data points. Step (1) above
   may take about 20 minutes to merge and transform this data. Step (2) may take
   another 10 minutes.
+
+## Regenerating test data
+
+If you get new, slightly different data from vendors, you may want to replace
+the test data with the new snapshot. You can use the _clean_verifone_sample.py_
+and _clean_cmt_sample.py_ scripts to regenerate these test data files.
+

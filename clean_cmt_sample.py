@@ -3,6 +3,8 @@ from itertools import cycle
 from string import digits
 from random import choice
 
+# TODO: read infilenames from command line params. Use click?
+
 infilenames = [
     'cmt/PPA_Trips_01012015_03312015.csv',
     'cmt/PPA_Trips_04012015_06302015.csv',
