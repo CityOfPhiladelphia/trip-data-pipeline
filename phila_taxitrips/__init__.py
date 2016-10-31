@@ -117,26 +117,36 @@ feature_mapping = {}
 def find_feature(latcol, lngcol, collection, idx, ndigits=4):
     """
     Return a function that will find a feature in a collection containing the
-    point in a given row.
+    point in a given row. Used to match up specific points (i.e., pickup or
+    dropoff locations) with generalized bins.
     """
     from shapely.geometry import Point
     def _finder(row):
+        # Get the lat/lng of the given row. If the lat or lng is not a valid
+        # floating point number, then return None for the matching generalized
+        # bin (i.e., no bin contains the point).
         try:
             lat = round(float(row[latcol]), ndigits)
             lng = round(float(row[lngcol]), ndigits)
         except ValueError:
             return None
 
+        # If a lat/lng is shared with a row that has already been looked up,
+        # it may be cached in the feature_mapping dictionary. Check there first,
+        # to save time.
         key = (lat, lng, collection['version'])
         if key in feature_mapping:
             return feature_mapping[key]
 
+        # Otherwise create a shapely Point and begin the search
         point = Point(lng, lat)
 
-        # query the index for the point to narrow down the search space
+        # Query the index for the point to narrow down the search space
         indexed_items = idx.intersection((lng, lat, lng, lat), objects=True)
         for item in indexed_items:
-            # search the matched features for one that contains the point
+            # Search the matched features for one that contains the point. Save
+            # the matched feature in the feature_mapping cache for future
+            # reference.
             feature = item.object
             if feature['shape'].contains(point):
                 feature_mapping[key] = feature
@@ -145,6 +155,10 @@ def find_feature(latcol, lngcol, collection, idx, ndigits=4):
     return _finder
 
 def rematch(pattern, field, matchgroup=1):
+    """
+    Creates a function that takes a row (dictionary) and matches a pattern
+    against a particular field in the row.
+    """
     def _getmatch(row):
         if isinstance(pattern, str):
             pattern_c = re.compile(pattern)
