@@ -36,6 +36,9 @@ taxitrips.py --help
 # (1) Save result to a file:
 taxitrips.py normalize -v "testdata/verifone*" -c "testdata/cmt*" > testdata/merged.csv
 
+# (1a) Validate the trip-lengths, and display errors if any:
+taxitrips.py validate testdata/merged.csv
+
 # (2) Upsert the generated data into an Oracle database
 taxitrips.py uploadraw testdata/merged.csv -d <db_conn_str>
 

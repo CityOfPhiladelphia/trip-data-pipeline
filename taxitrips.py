@@ -17,8 +17,10 @@ Updates weekly.
 """
 
 import click
-from phltaxitrips import (normalize, upload, update_anon, anonymize, fuzzy,
+from phila_taxitrips import (normalize, upload, update_anon, anonymize, fuzzy,
+    validate_trip_lengths,
     RAW_COLUMNS_CSV, RAW_COLUMNS_DB, PUBLIC_COLUMNS_CSV, PUBLIC_COLUMNS_DB)
+import sys
 
 
 @click.group()
@@ -68,6 +70,14 @@ def fuzzy_cmd(csvfile, regions):
     fuzzy(csvfile, regions)\
         .progress()\
         .tocsv()
+
+@cli.command(name='validate')
+@click.argument('csvfile', type=click.Path())
+def validate_cmd(csvfile):
+    table, errors = validate_trip_lengths(csvfile)
+    table.tocsv()
+    print('\n'.join(errors), file=sys.stderr)
+    sys.exit(1 if errors else 0)
 
 @cli.command(name='uploadpublic')
 @click.option('--database', '-d', help='The database connection string')

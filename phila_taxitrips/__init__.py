@@ -1,6 +1,9 @@
 from contextlib import contextmanager
 from datetime import datetime
 import datum
+import functools
+from itertools import combinations
+import numpy
 import os
 import phila_taxitrips.petl_ext as petl
 from phila_taxitrips.petl_ext import asnormpaytype, asisodatetime, asmoney
@@ -280,3 +283,59 @@ def anonymize(csvfile, db_conn_str, field_tuples):
         table = table.addfield('Anonymized ' + csvfield, lambda row, t=tablename, f=csvfield: anon_mapping[t][row[f]] if row[f] else None)
 
     return table
+
+def filter_outliers(values, scale=2):
+    """
+    Filtering outliers of a sample, particularly a non-symetric one, is fraught
+    with gotchas. For a comprehensive run down of the complications, see
+    http://eurekastatistics.com/using-the-median-absolute-deviation-to-find-outliers/.
+
+    Here, use a median absolute difference (MAD) approach, which should be good
+    enough to alert us of problems, even if it's not entirely rigorous.
+    """
+    median = numpy.median(values)
+    dists = tuple(abs(val - median) for val in values)
+    median_dist = numpy.median(dists)
+
+    def lte_mad(val):
+        dist = abs(val - median)
+        return dist <= (median_dist * scale)
+
+    return tuple(filter(lte_mad, values))
+
+def validate_trip_lengths(csvfile):
+    """
+    Check that the averages of the data sources are all within a standard
+    deviation of each other. Do this by:
+
+    1. Cutting out all columns except the trip lengths and data sources,
+    2. Grouping trip lengths from the same source,
+    3. Filtering out outliers at a reasonable scale,
+    4. Finding the mean and standard deviation of these "normal" groups, and
+    5. Ensuring that each pair of sources is within one standard deviation of
+       each other's mean.
+    """
+    table = petl.fromcsv(csvfile)\
+                .cut('Trip_Length', 'Data_Source')\
+                .convert('Trip_Length', float)\
+                .aggregate('Data_Source', {'Trip_Lengths': ('Trip_Length', tuple)})\
+                .convert('Trip_Lengths', filter_outliers)\
+                .addfields(
+                    ('mean', lambda row: numpy.mean(row['Trip_Lengths'])),
+                    ('std', lambda row: numpy.std(row['Trip_Lengths'])))\
+                .cutout('Trip_Lengths')\
+                .cache()
+
+    errors = []
+    for source1, source2 in combinations(table.records(), 2):
+        # get the distance between the means
+        dist = abs(source1.mean - source2.mean)
+
+        # check that the distance is within the standard error (i.e. 1 standard
+        # deviation) of each sample
+        if dist <= min(source1.std, source2.std):
+            continue
+        else:
+            errors.append('{} and {} samples are farther apart than expected'.format(source1.Data_Source, source2.Data_Source))
+
+    return table, errors
