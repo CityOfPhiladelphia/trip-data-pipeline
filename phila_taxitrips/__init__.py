@@ -116,6 +116,7 @@ def feature_property(latcol, lngcol, collection, property_name):
         return feature['properties'][property_name]
     return _getter
 
+
 feature_mapping = {}
 def find_feature(latcol, lngcol, collection, idx, ndigits=4):
     """
@@ -157,6 +158,7 @@ def find_feature(latcol, lngcol, collection, idx, ndigits=4):
         feature_mapping[key] = None
     return _finder
 
+
 def rematch(pattern, field, matchgroup=1):
     """
     Creates a function that takes a row (dictionary) and matches a pattern
@@ -169,6 +171,7 @@ def rematch(pattern, field, matchgroup=1):
         if match:
             return match.group(matchgroup)
     return _getmatch
+
 
 def fuzzy(csvfile, regionfile):
     region_collection, idx = load_shapes(regionfile)
@@ -267,6 +270,7 @@ def update_anon(db_conn_str, table_name, column_table_pairs):
             sql = make_sql(col, ids)
             db.execute(sql)
 
+
 def anonymize(csvfile, db_conn_str, field_tuples):
     # download anonymization tables from the db
     anon_mapping = {}
@@ -283,6 +287,7 @@ def anonymize(csvfile, db_conn_str, field_tuples):
         table = table.addfield('Anonymized ' + csvfield, lambda row, t=tablename, f=csvfield: anon_mapping[t][row[f]] if row[f] else None)
 
     return table
+
 
 def filter_outliers(values, scale=2):
     """
@@ -302,6 +307,7 @@ def filter_outliers(values, scale=2):
         return dist <= (median_dist * scale)
 
     return tuple(filter(lte_mad, values))
+
 
 def validate_trip_lengths(csvfile):
     """
