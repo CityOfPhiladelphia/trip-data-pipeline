@@ -167,6 +167,8 @@ def rematch(pattern, field, matchgroup=1):
     def _getmatch(row):
         if isinstance(pattern, str):
             pattern_c = re.compile(pattern)
+        else:
+            pattern_c = pattern
         match = pattern_c.search(row[field])
         if match:
             return match.group(matchgroup)
@@ -177,7 +179,7 @@ def fuzzy(csvfile, regionfile):
     region_collection, idx = load_shapes(regionfile)
 
     # Generalize the locations
-    zip_pattern = '.*[^\d](\d+)$'
+    zip_pattern = re.compile('.*[^\d](\d+)$')
     table = petl.fromcsv(csvfile)\
         .addfields(
             ('pickup_region', find_feature('Pickup Latitude', 'Pickup Longitude', region_collection, idx)),
