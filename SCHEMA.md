@@ -24,6 +24,33 @@ In the database, first create the taxi_trips table:
       street_or_dispatch VARCHAR(32),
       data_source VARCHAR(8)
     )
+
+    CREATE TABLE anonymized_taxi_trips (
+      operator_name NVARCHAR2(2000),
+      anonymized_medallion_id VARCHAR(16),
+      anonymized_driver_id VARCHAR(16),
+      pickup_general_time VARCHAR(24),
+      dropoff_general_time VARCHAR(24),
+      trip_length VARCHAR(16),
+      pickup_zip_code VARCHAR(10),
+      pickup_region_centroid_lat VARCHAR(16),
+      pickup_region_centroid_long VARCHAR(16),
+      pickup_region_id VARCHAR(16),
+      dropoff_zip_code VARCHAR(10),
+      dropoff_region_centroid_lat VARCHAR(16),
+      dropoff_region_centroid_long VARCHAR(16),
+      dropoff_region_id VARCHAR(16),
+      region_map_version VARCHAR(16),
+      fare VARCHAR(16),
+      tax VARCHAR(16),
+      tips VARCHAR(16),
+      tolls VARCHAR(16),
+      surcharge VARCHAR(16),
+      trip_total VARCHAR(16),
+      payment_type VARCHAR(16),
+      street_or_dispatch VARCHAR(32),
+      data_source VARCHAR(8)
+    )
 ```
 
 Also, create an index on what is a maximal unique identifier for taxi trips; we
