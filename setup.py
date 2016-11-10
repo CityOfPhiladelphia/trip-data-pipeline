@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='phila-taxi-trip-data-pipeline',
-    version='1.0.2',
+    version='1.0.3',
     packages=['phila_taxitrips'],
     scripts=['taxitrips.py'],
     install_requires=[
