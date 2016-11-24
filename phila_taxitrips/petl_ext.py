@@ -6,14 +6,14 @@ from petl.compat import text_type
 from .itertools_ext import grouper
 
 
-def fromcsvs(filepatterns, fieldnames=None):
+def fromcsvs(filepatterns, fieldnames=None, encoding=None, errors='strict', **csvargs):
     """
     Create a table from a list of file names. Fieldnames is an iterable which,
     when specified, is pushed on as the header for the table.
     """
     t = None
     for fname in chain.from_iterable(iglob(p) for p in filepatterns):
-        t_partial = fromcsv(fname)
+        t_partial = fromcsv(fname, encoding=encoding, errors=errors, **csvargs)
         if fieldnames is not None:
             t_partial = t_partial.pushheader(fieldnames)
         t = t_partial if t is None else t.cat(t_partial)
