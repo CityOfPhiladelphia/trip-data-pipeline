@@ -32,7 +32,9 @@ def normalize(verifone_filenames, cmt_filenames):
     6. Round minutes to the nearest 15 minutes.
     """
     # Load and normalize Verifone tables
-    ver_table = petl.fromcsvs(verifone_filenames, fieldnames=['Shift #', 'Trip #', 'Operator Name', 'Medallion', 'Device Type', 'Chauffeur #', 'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch'])\
+    ver_fieldnames = ['Shift #', 'Trip #', 'Operator Name', 'Medallion', 'Device Type', 'Chauffeur #', 'Meter On Datetime', 'Meter Off Datetime', 'Trip Length', 'Pickup Latitude', 'Pickup Longitude', 'Pickup Location', 'Dropoff Latitude', 'Dropoff Longitude', 'Dropoff Location', 'Fare', 'Tax', 'Tips', 'Tolls', 'Surcharge', 'Trip Total', 'Payment Type', 'Street/Dispatch']
+    ver_table = petl.fromcsvs(verifone_filenames, fieldnames=ver_fieldnames,
+                              encoding='windows-1252')\
         .addfield('Data Source', 'verifone')\
         .convert('Payment Type', asnormpaytype)\
         .convert('Meter On Datetime', lambda val: val[:19] if val else '')\
