@@ -15,7 +15,7 @@ def fromcsvs(filepatterns, fieldnames=None, encoding=None, errors='strict', **cs
     for fname in chain.from_iterable(iglob(p) for p in filepatterns):
         t_partial = fromcsv(fname, encoding=encoding, errors=errors, **csvargs)
         if fieldnames is not None:
-            t_partial = t_partial.pushheader(fieldnames)
+            t_partial = t_partial.setheader(fieldnames)
         t = t_partial if t is None else t.cat(t_partial)
     return t
 
